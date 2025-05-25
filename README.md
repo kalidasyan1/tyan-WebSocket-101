@@ -80,8 +80,7 @@ If you want to use live stock prices, you can:
 
 
 # 🎨 Screenshot
-
-Real-time stock price dashboard using Java + WebSocket
+<img src="https://github.com/user-attachments/assets/ac33456c-abec-44b8-b9fe-f33ef9dc140d" width="600" alt="Stock Ticker Preview"/>
 
 
 # 📜 License
