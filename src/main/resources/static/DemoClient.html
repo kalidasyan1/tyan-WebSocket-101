@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WebSocket + Long Polling Fallback</title>
+</head>
+<body>
+<h2>Status: <span id="status">Connecting...</span></h2>
+<div id="messages"></div>
+
+<script>
+  const statusEl = document.getElementById('status');
+  const messagesEl = document.getElementById('messages');
+
+  function append(msg) {
+    messagesEl.innerHTML += `<p>${msg}</p>`;
+  }
+
+  let ws;
+  try {
+    ws = new WebSocket("ws://localhost:8080/ws");
+
+    ws.onopen = () => {
+      statusEl.innerText = 'Connected via WebSocket';
+      ws.send('Hello via WebSocket!');
+    };
+
+    ws.onmessage = (event) => {
+      append("WS: " + event.data);
+    };
+
+    ws.onerror = () => {
+      throw new Error('WebSocket failed');
+    };
+
+    ws.onclose = () => {
+      if (!ws._fallback) {
+        console.warn("WebSocket closed, falling back to polling...");
+        startLongPolling();
+      }
+    };
+
+  } catch (e) {
+    console.warn("WebSocket failed, using long polling:", e.message);
+    startLongPolling();
+  }
+
+  function startLongPolling() {
+    statusEl.innerText = 'Using Long Polling';
+    function poll() {
+      fetch('/poll')
+          .then(res => res.json())
+          .then(data => {
+            append("LP: " + data.message);
+            poll();
+          })
+          .catch(err => {
+            append("Polling error: " + err.message);
+            setTimeout(poll, 5000);
+          });
+    }
+    poll();
+  }
+</script>
+</body>
+</html>
