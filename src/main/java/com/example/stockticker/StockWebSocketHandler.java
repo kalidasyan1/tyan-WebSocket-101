@@ -1,5 +1,7 @@
 package com.example.stockticker;
 
+import com.example.stockticker.restAPI.AlphaVantageClient;
+import com.example.stockticker.websocketAPI.FinnhubWebSocketClient;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,61 +22,74 @@ public class StockWebSocketHandler extends TextWebSocketHandler {
   private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
   private final List<String> stocks = List.of("AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA");
 
+  private final FinnhubWebSocketClient finnhub;
+  private final AlphaVantageClient alpha;
+
   @Autowired
-  private AlphaVantageClient alphaVantageClient;
+  public StockWebSocketHandler(FinnhubWebSocketClient finnhub, AlphaVantageClient alpha) {
+    this.finnhub = finnhub;
+    this.alpha = alpha;
+  }
 
   @Override
   public void afterConnectionEstablished(WebSocketSession session) {
     System.out.println("WebSocket connected: " + session.getId());
-    scheduler.scheduleAtFixedRate(() -> {
-      Map<String, String> livePrices = new ConcurrentHashMap<>();
-      CountDownLatch latch = new CountDownLatch(stocks.size());
 
-      for (String symbol : stocks) {
-        alphaVantageClient.getPrice(symbol)
-            .doOnSubscribe(sub -> System.out.println("Requesting " + symbol))
-            .subscribe(json -> {
-              System.out.println("Received price for " + symbol + ": " + json);
-              String price = parsePriceFromJson(json, symbol);
-              if (price != null) {
-                livePrices.put(symbol, price);
-              }
-              latch.countDown();
-            }, error -> {
-              System.err.println("Failed to fetch price for " + symbol + ": " + error.getMessage());
-              latch.countDown();
-            });
+    scheduler.scheduleAtFixedRate(() -> {
+      final Map<String, String> prices = new ConcurrentHashMap<>();
+
+      if (!finnhub.isStale(19_000)) { // 15s without trade = stale
+        prices.putAll(finnhub.getLatestPricesSnapshot());
+        System.out.println("✅ Using Finnhub live prices");
+      } else {
+        System.out.println("⚠️ Finnhub stale or down. Polling Alpha Vantage...");
+        CountDownLatch latch = new CountDownLatch(stocks.size());
+
+        for (String symbol : stocks) {
+          alpha.getPrice(symbol).subscribe(json -> {
+            String price = parsePriceFromJson(json, symbol);
+            if (price != null) {
+              prices.put(symbol, price);
+            }
+            latch.countDown();
+          }, err -> {
+            System.err.println("AlphaVantage error for " + symbol);
+            latch.countDown();
+          });
+        }
+
+        try {
+          latch.await(5, TimeUnit.SECONDS);
+        } catch (InterruptedException ignored) {
+        }
       }
 
       try {
-        latch.await(5, TimeUnit.SECONDS);
-        StringBuilder jsonBuilder = new StringBuilder("{");
+        StringBuilder json = new StringBuilder("{");
         for (String s : stocks) {
-          String price = livePrices.getOrDefault(s, "null");
-          jsonBuilder.append("\"").append(s).append("\":").append(price).append(",");
+          String price = prices.getOrDefault(s, "null");
+          json.append("\"").append(s).append("\":").append(price).append(",");
         }
         if (!stocks.isEmpty()) {
-          jsonBuilder.setLength(jsonBuilder.length() - 1); // remove last comma
+          json.setLength(json.length() - 1);
         }
-        jsonBuilder.append("}");
+        json.append("}");
 
-        session.sendMessage(new TextMessage(jsonBuilder.toString()));
+        session.sendMessage(new TextMessage(json.toString()));
       } catch (Exception e) {
         e.printStackTrace();
       }
-    }, 0, 15, TimeUnit.SECONDS); // Respect Alpha Vantage rate limits
+    }, 0, 20, TimeUnit.SECONDS); // send to browser every 15 seconds
   }
 
-  // Helper to extract "05. price" field from Alpha Vantage JSON
   private String parsePriceFromJson(String json, String symbol) {
     try {
-      String[] lines = json.split("\"05. price\"\\s*:\\s*\"");
-      if (lines.length > 1) {
-        String price = lines[1].split("\"")[0];
-        return String.format("%.2f", Double.parseDouble(price));
+      String[] parts = json.split("\"05. price\"\\s*:\\s*\"");
+      if (parts.length > 1) {
+        return String.format("%.2f", Double.parseDouble(parts[1].split("\"")[0]));
       }
     } catch (Exception e) {
-      System.err.println("Error parsing price for " + symbol + ": " + e.getMessage());
+      System.err.println("Failed to parse Alpha Vantage response for " + symbol);
     }
     return null;
   }
