@@ -1,5 +1,6 @@
 package com.example.stockticker;
 
+import com.example.stockticker.services.StockWebSocketHandler;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;

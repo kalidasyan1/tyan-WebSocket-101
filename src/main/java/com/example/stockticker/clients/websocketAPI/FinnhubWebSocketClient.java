@@ -1,4 +1,4 @@
-package com.example.stockticker.websocketAPI;
+package com.example.stockticker.clients.websocketAPI;
 
 import java.net.URI;
 import java.util.HashMap;

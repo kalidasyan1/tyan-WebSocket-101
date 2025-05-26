@@ -1,4 +1,4 @@
-package com.example.stockticker.restAPI;
+package com.example.stockticker.clients.restAPI;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;

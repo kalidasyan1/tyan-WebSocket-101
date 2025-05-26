@@ -1,6 +1,6 @@
 package com.example.stockticker;
 
-import com.example.stockticker.websocketAPI.FinnhubWebSocketClient;
+import com.example.stockticker.clients.websocketAPI.FinnhubWebSocketClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
