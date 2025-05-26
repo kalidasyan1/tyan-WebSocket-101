@@ -1,13 +1,18 @@
 package com.example.stockticker;
 
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.socket.*;
-import org.springframework.web.socket.handler.TextWebSocketHandler;
 import org.springframework.stereotype.Component;
-import reactor.core.publisher.Mono;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.handler.TextWebSocketHandler;
 
-import java.util.*;
-import java.util.concurrent.*;
 
 @Component
 public class StockWebSocketHandler extends TextWebSocketHandler {
@@ -46,8 +51,7 @@ public class StockWebSocketHandler extends TextWebSocketHandler {
         StringBuilder jsonBuilder = new StringBuilder("{");
         for (String s : stocks) {
           String price = livePrices.getOrDefault(s, "null");
-          jsonBuilder.append("\"").append(s).append("\":")
-              .append(price).append(",");
+          jsonBuilder.append("\"").append(s).append("\":").append(price).append(",");
         }
         if (!stocks.isEmpty()) {
           jsonBuilder.setLength(jsonBuilder.length() - 1); // remove last comma
@@ -58,7 +62,6 @@ public class StockWebSocketHandler extends TextWebSocketHandler {
       } catch (Exception e) {
         e.printStackTrace();
       }
-
     }, 0, 15, TimeUnit.SECONDS); // Respect Alpha Vantage rate limits
   }
 
